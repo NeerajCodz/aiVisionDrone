@@ -1,7 +1,7 @@
 import cv2
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import numpy as np
@@ -11,13 +11,15 @@ import json
 import threading
 import time
 import logs
+import argparse
 
 app = FastAPI(title="AI Drone Vision App")
 
 # Mount static directory
-if not os.path.exists("static"):
-    os.makedirs("static")
+os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/css", StaticFiles(directory="static/css"), name="css")
+app.mount("/js", StaticFiles(directory="static/js"), name="js")
 
 # Global State
 SERVER_URL = "http://127.0.0.1:8000/video_feed" 
@@ -27,6 +29,22 @@ latest_processed_frame = None
 model_module = None
 video_capture = None
 running = True
+standalone_mode = False
+
+def get_models():
+    models_dir = "models"
+    model_list = []
+    if os.path.exists(models_dir):
+        for d in os.listdir(models_dir):
+            path = os.path.join(models_dir, d)
+            if os.path.isdir(path):
+                json_path = os.path.join(path, "model.json")
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        meta = json.load(f)
+                        meta['id'] = d
+                        model_list.append(meta)
+    return model_list
 
 def load_model(model_id):
     global model_module, current_model_name
@@ -59,22 +77,26 @@ def init_first_model():
                 return
     logs.log("App", "No models found in /models directory", "WARNING")
 
-init_first_model()
+# init_first_model() - Disabled by default per user request
 
 def processing_loop():
-    global latest_processed_frame, video_capture, model_module
+    global latest_processed_frame, video_capture, model_module, standalone_mode
     
     # Retry connection logic
     while running:
         if video_capture is None or not video_capture.isOpened():
             try:
-                # Try connecting to server
-                video_capture = cv2.VideoCapture(SERVER_URL)
+                if standalone_mode:
+                    video_capture = cv2.VideoCapture(0)
+                    logs.log("App", "Opened laptop webcam", "SUCCESS")
+                else:
+                    video_capture = cv2.VideoCapture(SERVER_URL)
+                    logs.log("App", "Connected to Drone Server Feed", "SUCCESS")
+                    
                 if not video_capture.isOpened():
-                    logs.log("App", "Waiting for server feed...", "WARNING")
+                    logs.log("App", "Failed to open capture", "WARNING")
                     time.sleep(2)
                     continue
-                logs.log("App", "Connected to Drone Server Feed", "SUCCESS")
             except Exception as e:
                  logs.log("App", f"Connection error: {e}", "ERROR")
                  time.sleep(2)
@@ -102,29 +124,25 @@ def processing_loop():
             
         time.sleep(0.01)
 
-# Start background thread
-thread = threading.Thread(target=processing_loop, daemon=True)
-thread.start()
+@app.on_event("startup")
+def startup_event():
+    # Generate static models.json with all model-ids and their JSON data
+    models = get_models()
+    with open(os.path.join("static", "models.json"), 'w') as f:
+        json.dump(models, f, indent=2)
+    logs.log("App", f"Generated static models.json with {len(models)} models", "INFO")
+    
+    # Start background thread
+    thread = threading.Thread(target=processing_loop, daemon=True)
+    thread.start()
 
 @app.get("/")
 def read_root():
-    return JSONResponse(content={"message": "Go to /static/index.html for the UI"})
+    return FileResponse("static/index.html")
 
 @app.get("/api/models")
 def list_models():
-    models_dir = "models"
-    model_list = []
-    if os.path.exists(models_dir):
-        for d in os.listdir(models_dir):
-            path = os.path.join(models_dir, d)
-            if os.path.isdir(path):
-                json_path = os.path.join(path, "model.json")
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        meta = json.load(f)
-                        meta['id'] = d
-                        model_list.append(meta)
-    return model_list
+    return get_models()
 
 @app.post("/api/select_model")
 async def select_model(request: Request):
@@ -156,12 +174,30 @@ def generate_processed_frames():
                  yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
         
-        cv2.waitKey(30)
+        time.sleep(0.033)  # ~30 FPS
 
 @app.get("/video_feed")
 def video_feed():
     return StreamingResponse(generate_processed_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="AI Drone Vision App")
+    parser.add_argument("--standalone", action="store_true", help="Use laptop webcam instead of drone server feed")
+    parser.add_argument("--model", type=str, help="ID of the model to load on startup", default=None)
+    args = parser.parse_args()
+    
+    if args.standalone:
+        standalone_mode = True
+    
+    if args.model:
+        logs.log("App", f"Attempting to load requested model: {args.model}", "INFO")
+        if not load_model(args.model):
+             logs.log("App", f"Could not load requested model: {args.model}", "ERROR")
+    else:
+        logs.log("App", "No specific model requested. Starting in Video Only mode.", "INFO")
+        # Optional: Uncomment if you still want a default fallback, but user requested "Dont keep any default models"
+        # init_first_model()
+
     uvicorn.run(app, host="0.0.0.0", port=5000)

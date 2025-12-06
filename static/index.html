@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -16,7 +18,7 @@
                     <span class="dot"></span> <span id="statusText">Connecting...</span>
                 </div>
             </div>
-            
+
             <div class="controls">
                 <label for="modelSelect">Active Model:</label>
                 <select id="modelSelect">
@@ -53,5 +55,14 @@
         </main>
     </div>
     <script src="js/script.js"></script>
+    <script>
+        // Auto-refresh logs every 5s
+        setInterval(() => {
+            fetch('/api/logs').then(r => r.json()).then(logs => {
+                console.log('Latest Logs:', logs);
+            });
+        }, 5000);
+    </script>
 </body>
+
 </html>

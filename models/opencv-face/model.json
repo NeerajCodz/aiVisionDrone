@@ -1,0 +1,11 @@
+{
+    "name": "OpenCV Face Recognition",
+    "version": "1.0.0",
+    "description": "Face recognition using pre-loaded images.",
+    "author": "System",
+    "dependencies": [
+        "opencv-python",
+        "face_recognition",
+        "numpy"
+    ]
+}

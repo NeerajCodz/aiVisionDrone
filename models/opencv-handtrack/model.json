@@ -1,0 +1,11 @@
+{
+    "name": "OpenCV Hand Tracking",
+    "version": "1.0.0",
+    "description": "Hand tracking with custom landmark visualization and measurement.",
+    "author": "System",
+    "dependencies": [
+        "opencv-python",
+        "mediapipe",
+        "numpy"
+    ]
+}

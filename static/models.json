@@ -1,0 +1,62 @@
+[
+  {
+    "name": "OpenCV Face Recognition",
+    "version": "1.0.0",
+    "description": "Face recognition using pre-loaded images.",
+    "author": "System",
+    "dependencies": [
+      "opencv-python",
+      "face_recognition",
+      "numpy"
+    ],
+    "id": "opencv-face"
+  },
+  {
+    "name": "OpenCV Hand Tracking",
+    "version": "1.0.0",
+    "description": "Hand tracking with custom landmark visualization and measurement.",
+    "author": "System",
+    "dependencies": [
+      "opencv-python",
+      "mediapipe",
+      "numpy"
+    ],
+    "id": "opencv-handtrack"
+  },
+  {
+    "name": "OpenCV Person Tracking",
+    "version": "1.0.0",
+    "description": "Full body tracking (bounding box) using MediaPipe Pose.",
+    "author": "System",
+    "dependencies": [
+      "opencv-python",
+      "mediapipe",
+      "numpy"
+    ],
+    "id": "opencv-person"
+  },
+  {
+    "name": "OpenCV Person Skeleton",
+    "version": "1.0.0",
+    "description": "Full body skeleton tracking using MediaPipe Pose.",
+    "author": "System",
+    "dependencies": [
+      "opencv-python",
+      "mediapipe",
+      "numpy"
+    ],
+    "id": "opencv-personskeleton"
+  },
+  {
+    "name": "YOLOv8 Object Detection",
+    "version": "1.0.0",
+    "description": "Real-time object detection using Ultralytics YOLOv8.",
+    "author": "System",
+    "dependencies": [
+      "ultralytics",
+      "opencv-python",
+      "numpy"
+    ],
+    "id": "yolov8"
+  }
+]

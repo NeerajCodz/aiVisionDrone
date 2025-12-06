@@ -1,0 +1,11 @@
+{
+    "name": "OpenCV Person Tracking",
+    "version": "1.0.0",
+    "description": "Full body tracking (bounding box) using MediaPipe Pose.",
+    "author": "System",
+    "dependencies": [
+        "opencv-python",
+        "mediapipe",
+        "numpy"
+    ]
+}

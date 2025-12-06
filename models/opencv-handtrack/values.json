@@ -1,0 +1,36 @@
+{
+    "max_num_hands": 2,
+    "min_detection_confidence": 0.85,
+    "min_tracking_confidence": 0.85,
+    "colors": {
+        "circle": [
+            255,
+            255,
+            255
+        ],
+        "line": [
+            200,
+            200,
+            200
+        ],
+        "text": [
+            255,
+            0,
+            0
+        ],
+        "diameter_circle": [
+            0,
+            0,
+            0
+        ],
+        "diameter_endpoints": [
+            0,
+            255,
+            0
+        ]
+    },
+    "dimensions": {
+        "circle_radius": 3,
+        "line_thickness": 2
+    }
+}

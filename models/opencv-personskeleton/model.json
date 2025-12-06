@@ -1,0 +1,11 @@
+{
+    "name": "OpenCV Person Skeleton",
+    "version": "1.0.0",
+    "description": "Full body skeleton tracking using MediaPipe Pose.",
+    "author": "System",
+    "dependencies": [
+        "opencv-python",
+        "mediapipe",
+        "numpy"
+    ]
+}

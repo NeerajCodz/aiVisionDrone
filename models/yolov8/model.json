@@ -1,0 +1,11 @@
+{
+    "name": "YOLOv8 Object Detection",
+    "version": "1.0.0",
+    "description": "Real-time object detection using Ultralytics YOLOv8.",
+    "author": "System",
+    "dependencies": [
+        "ultralytics",
+        "opencv-python",
+        "numpy"
+    ]
+}

@@ -26,10 +26,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const models = await response.json();
 
             modelSelect.innerHTML = '';
+
+            // Add Default "None" option
+            const defaultOption = document.createElement('option');
+            defaultOption.value = "";
+            defaultOption.textContent = "Select a Model...";
+            defaultOption.selected = true;
+            defaultOption.disabled = true; // Act as a placeholder
+            modelSelect.appendChild(defaultOption);
+
             models.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model.id;
-                option.textContent = model.name;
+                // Format: TITLE (model-id)
+                option.textContent = `${model.name || model.id} (${model.id})`;
+                if (model.description) {
+                    option.title = model.description;
+                }
                 modelSelect.appendChild(option);
             });
             setStatus(true);
@@ -94,56 +107,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const logs = await response.json();
 
-                // Clear container if we look like we reconnected or just simple render
-                // For simplicity, we just render what we get, but we need to dedupe or handle stream.
-                // The API returns *all* logs (last 100).
+                // If we have significantly fewer logs than before, the server might have restarted or cleared logs.
+                // In that case, we should clear our local display.
+                // However, for now, let's just assume appending new ones.
 
-                // Naive approach: Render all creates dupes. 
-                // Better: Clear and Render? 
-                // Or: Keep track of last rendered.
+                // Sort logs by timestamp just in case
+                // logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-                // Let's just Clear and Render for this simple demo to ensure sync, 
-                // OR compare last log.
+                let newLogsCount = 0;
 
-                // Optimization: The server returns last 100 logs. 
-                // We can just wipe and redraw or be smart.
-                // "Rich" usually means smart. 
-                // Let's use a signature check.
-
-                const currentLogCount = logsContainer.childElementCount;
-                if (logs.length > currentLogCount) {
-                    // Log array has grown or changed?
-                    // Let's just render the 'new' ones.
-
-                    // Actually, easiest way to avoid flicker and complexity:
-                    // Only add if not present?
-
-                    // Let's just empty logsContainer if logs array size is vastly different (reset)
-                    // Otherwise append.
-
-                    // REAL SOLUTION: The api returns the full list.
-                    // We should just wipe and rebuild? No, flashing.
-
-                    // Let's track the last timestamp seen.
-                    const lastLog = logs[logs.length - 1];
-                    // ... this is getting complicated for a demo.
-
-                    // Simple mode: Wipe and redraw only if count differs? No.
-
-                    // Let's use the clear approach only if necessary.
-                    logsContainer.innerHTML = '';
-                    logs.forEach(log => {
+                logs.forEach(log => {
+                    // Create a unique signature for the log to dedup
+                    const signature = `${log.timestamp}-${log.source}-${log.message}`;
+                    if (!knownLogSignatures.has(signature)) {
                         addLogEntry(log.source, log.message, log.level, log.timestamp);
-                    });
-                }
+                        knownLogSignatures.add(signature);
+                        newLogsCount++;
+                    }
+                });
 
-                // Wait... Wiping 100 DOM elements every second is bad.
-                // But efficient enough for this scale.
+                // Prune knownLogSignatures if it gets too big (optional memory management)
+                if (knownLogSignatures.size > 2000) {
+                    knownLogSignatures.clear();
+                    // This might cause re-rendering execution if we don't clear DOM, but usually server keeps last 100. 
+                    // So actually, we should align with server.
+                    // A simple way is: if server logs != what we have, sync. 
+                    // But appending is safer for "streaming" feel.
+                }
 
             } else {
                 setStatus(false);
             }
         } catch (error) {
+            // console.error(error); // silent fail
             setStatus(false);
         }
     }
