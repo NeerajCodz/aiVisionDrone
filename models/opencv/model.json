@@ -1,0 +1,11 @@
+{
+    "name": "OpenCV Face Detection",
+    "version": "1.0.0",
+    "description": "A simple face detection model using OpenCV Haar Cascades.",
+    "author": "System",
+    "repo_url": "",
+    "dependencies": [
+        "opencv-python",
+        "numpy"
+    ]
+}
