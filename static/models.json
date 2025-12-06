@@ -36,7 +36,7 @@
     "id": "opencv-person"
   },
   {
-    "name": "OpenCV Person Skeleton",
+    "name": "OpenCV Person (UNSTABLE)",
     "version": "1.0.0",
     "description": "Full body skeleton tracking using MediaPipe Pose.",
     "author": "System",

@@ -89,10 +89,14 @@ document.addEventListener('DOMContentLoaded', () => {
         div.className = `log-entry ${level.toLowerCase()}`;
 
         div.innerHTML = `
-            <span class="timestamp">${timestamp}</span>
-            <span class="source">[${source}]</span>
-            <span class="message">${message}</span>
-        `;
+    <div class="log-line-1">
+        <span class="timestamp">${timestamp}</span> 
+        <span class="source">[${source}]</span>
+    </div>
+    <div class="log-line-2">
+        <span class="message">${message}</span>
+    </div>
+`;
 
         logsContainer.appendChild(div);
         logsContainer.scrollTop = logsContainer.scrollHeight;
