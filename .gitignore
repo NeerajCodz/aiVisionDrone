@@ -1,2 +1,4 @@
 /models/opencv-facedetect/known_faces
 .worktrees/
+.venv/
+firmware/esp32cam/secrets.h
