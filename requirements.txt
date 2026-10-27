@@ -1,12 +1,16 @@
 fastapi
 uvicorn
-opencv-python
+# MediaPipe 0.10.21 uses mp.solutions; both projects require OpenCV wrappers.
+# Keep the wrappers on the same release because they share the cv2 namespace.
+opencv-python==4.11.0.86
+opencv-contrib-python==4.11.0.86
 setuptools<81
 jinja2
-numpy
+numpy<2
 python-multipart
 pillow
 dlib
 face-recognition
-mediapipe>=0.10,<1.0
+# MediaPipe 0.10.30+ removed the legacy solutions API used by these models.
+mediapipe==0.10.21
 ultralytics

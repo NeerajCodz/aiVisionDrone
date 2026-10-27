@@ -1,5 +1,7 @@
 /models/opencv-facedetect/known_faces
 .worktrees/
 .venv/
+__pycache__/
+**/__pycache__/
 firmware/esp32cam/secrets.h
 firmware/esp32cam/build/
