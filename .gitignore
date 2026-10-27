@@ -5,3 +5,5 @@ __pycache__/
 **/__pycache__/
 firmware/esp32cam/secrets.h
 firmware/esp32cam/build/
+camera_config.json
+camera_config.json.tmp

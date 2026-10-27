@@ -1,170 +1,73 @@
-# app.py
-import cv2
-import uvicorn
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-import numpy as np
-import os
-import importlib.util
-import json
-import threading
-import time
-import logs
+"""Vision Hub dashboard and camera API."""
 import argparse
 from contextlib import asynccontextmanager
+import json
+import os
+from pathlib import Path
+import time
 
-# === CRITICAL FIX: Increase FFmpeg timeouts (prevents 30s disconnects) ===
-os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-    "timeout|60000000;"          # 60 seconds connect timeout
-    "rw_timeout|60000000;"       # 60 seconds read/write timeout
-    "analyzeduration|20000000;"  # Give stream time to be analyzed
-    "probesize|50000000;"        # Larger probe buffer
-    "rtsp_transport|tcp"         # Force TCP for RTSP (if ever used)
-)
+import cv2
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+import uvicorn
 
-# === FastAPI with modern lifespan ===
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # --- Startup ---
-    print("[INFO] Starting AI Drone Vision App...")
-    models = get_models()
-    os.makedirs("static", exist_ok=True)
-    with open(os.path.join("static", "models.json"), 'w') as f:
-        json.dump(models, f, indent=2)
-    logs.log("App", f"Generated static models.json with {len(models)} models", "INFO")
-
-    # Start processing thread
-    thread = threading.Thread(target=processing_loop, daemon=True)
-    thread.start()
-
-    yield  # App runs here
-
-    # --- Shutdown ---
-    global running
-    running = False
-    logs.log("App", "Shutting down...", "INFO")
+from camera_manager import CameraManager, get_models, placeholder_frame
+import logs
 
 
-app = FastAPI(title="AI Drone Vision App", lifespan=lifespan)
-
-# Mount static files
-os.makedirs("static", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/css", StaticFiles(directory="static/css"), name="css")
-app.mount("/js", StaticFiles(directory="static/js"), name="js")
-
-# === Global State ===
-AIVISION_CAMERA_URL = os.environ.get(
-    "AIVISION_CAMERA_URL",
-    "http://esp32cam.local:81/stream",
-).strip() or "http://esp32cam.local:81/stream"
-current_model = None
-current_model_name = "opencv"  # Default fallback
-latest_processed_frame = None
-model_module = None
-video_capture = None
-running = True
+ROOT = Path(__file__).resolve().parent
+CONFIG_PATH = Path(os.environ.get("AIVISION_CAMERAS_FILE", ROOT / "camera_config.json"))
+DEFAULT_CAMERA_URL = os.environ.get("AIVISION_CAMERA_URL", "").strip() or None
 standalone_mode = False
+startup_model = None
+manager = None
 
 
-def get_models():
-    models_dir = "models"
-    model_list = []
-    if os.path.exists(models_dir):
-        for d in os.listdir(models_dir):
-            path = os.path.join(models_dir, d)
-            if os.path.isdir(path):
-                json_path = os.path.join(path, "model.json")
-                if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
-                        meta = json.load(f)
-                        meta['id'] = d
-                        model_list.append(meta)
-    return model_list
-
-
-def load_model(model_id):
-    global model_module, current_model_name
-    model_path = os.path.join("models", model_id, "main.py")
-    if not os.path.exists(model_path):
-        logs.log("App", f"Model {model_id} not found", "ERROR")
-        return False
-
+@asynccontextmanager
+async def lifespan(app):
+    global manager
+    manager = CameraManager(CONFIG_PATH, DEFAULT_CAMERA_URL, webcam=standalone_mode)
+    manager.start(startup_model=startup_model)
+    logs.log("App", f"Vision Hub started with {len(manager.list())} cameras", "INFO")
     try:
-        spec = importlib.util.spec_from_file_location("model_main", model_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        model_module = module
-        current_model_name = model_id
-        logs.log("App", f"Loaded model: {model_id}", "SUCCESS")
-        return True
-    except Exception as e:
-        logs.log("App", f"Failed to load model {model_id}: {e}", "ERROR")
-        return False
+        yield
+    finally:
+        manager.stop()
+        logs.log("App", "Shutting down", "INFO")
 
 
-def processing_loop():
-    global latest_processed_frame, video_capture, model_module, standalone_mode
-
-    retry_delay = 2
-    while running:
-        if video_capture is None or not video_capture.isOpened():
-            while running:
-                try:
-                    logs.log("App", f"Connecting to camera stream: {AIVISION_CAMERA_URL}", "INFO")
-                    if standalone_mode:
-                        video_capture = cv2.VideoCapture(0)
-                        logs.log("App", "Opened laptop webcam", "SUCCESS")
-                    else:
-                        video_capture = cv2.VideoCapture(AIVISION_CAMERA_URL)
-                        # Optimize for low latency
-                        video_capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                        video_capture.set(cv2.CAP_PROP_FPS, 30)
-
-                    if video_capture.isOpened():
-                        logs.log("App", "Connected to camera stream", "SUCCESS")
-                        retry_delay = 2  # Reset backoff
-                        break
-                    else:
-                        raise Exception("VideoCapture failed to open")
-                except Exception as e:
-                    if video_capture:
-                        video_capture.release()
-                        video_capture = None
-                    logs.log("App", f"Connection failed: {e}. Retrying in {retry_delay}s...", "WARNING")
-                    time.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 30)  # Exponential backoff
-
-        ret, frame = video_capture.read()
-        if not ret:
-            logs.log("App", "Frame read failed. Reconnecting...", "WARNING")
-            video_capture.release()
-            video_capture = None
-            time.sleep(0.5)
-            continue
-
-        # Process frame with current model
-        if model_module and hasattr(model_module, 'process_frame'):
-            try:
-                processed, model_logs = model_module.process_frame(frame)
-                latest_processed_frame = processed
-                for l in model_logs:
-                    logs.log(current_model_name, l, "AI")
-            except Exception as e:
-                logs.log("App", f"Model processing error: {e}", "ERROR")
-                latest_processed_frame = frame
-        else:
-            latest_processed_frame = frame
-
-        time.sleep(0.01)  # ~100 FPS processing max
+app = FastAPI(title="Vision Hub", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+app.mount("/css", StaticFiles(directory=ROOT / "static" / "css"), name="css")
+app.mount("/js", StaticFiles(directory=ROOT / "static" / "js"), name="js")
 
 
-# === Routes ===
+class CameraCreate(BaseModel):
+    name: str
+    url: str
+
+
+class CameraUpdate(BaseModel):
+    name: str | None = None
+    url: str | None = None
+
+
+class ModelSelection(BaseModel):
+    model_id: str | None = None
+
+
+def camera_or_404(camera_id):
+    try:
+        return manager.get(camera_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Camera not found") from None
+
+
 @app.get("/")
 def read_root():
-    return FileResponse("static/index.html")
+    return FileResponse(ROOT / "static" / "index.html")
 
 
 @app.get("/api/models")
@@ -172,14 +75,55 @@ def list_models():
     return get_models()
 
 
+@app.get("/api/cameras")
+def list_cameras():
+    return manager.list()
+
+
+@app.post("/api/cameras", status_code=201)
+def add_camera(payload: CameraCreate):
+    try:
+        return manager.add(payload.name, payload.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@app.patch("/api/cameras/{camera_id}")
+def update_camera(camera_id: str, payload: CameraUpdate):
+    try:
+        return manager.update(camera_id, payload.name, payload.url)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Camera not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@app.delete("/api/cameras/{camera_id}", status_code=204)
+def delete_camera(camera_id: str):
+    try:
+        manager.remove(camera_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Camera not found") from None
+
+
+@app.post("/api/cameras/{camera_id}/model")
+def select_camera_model(camera_id: str, payload: ModelSelection):
+    try:
+        return manager.select_model(camera_id, payload.model_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Camera not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
 @app.post("/api/select_model")
-async def select_model(request: Request):
-    data = await request.json()
-    model_id = data.get("model_id")
-    if load_model(model_id):
-        return {"status": "success", "message": f"Switched to model: {model_id}"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to load model")
+def select_model(payload: ModelSelection):
+    """Keep the original single-camera selector available for existing clients."""
+    camera = manager.first()
+    if camera is None:
+        raise HTTPException(status_code=404, detail="Add a camera first")
+    select_camera_model(camera.id, payload)
+    return {"status": "success", "message": f"Switched to model: {payload.model_id or 'Video Only'}"}
 
 
 @app.get("/api/logs")
@@ -187,51 +131,40 @@ def get_logs():
     return logs.get_all_logs()
 
 
-def generate_processed_frames():
-    global latest_processed_frame
-    while True:
-        if latest_processed_frame is not None:
-            ret, buffer = cv2.imencode('.jpg', latest_processed_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-            if ret:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+def generate_processed_frames(camera):
+    # A shared capture/processor feeds every viewer without opening extra ESP32 connections.
+    _, blank = cv2.imencode(".jpg", placeholder_frame())
+    blank_bytes = blank.tobytes()
+    while camera is None or not camera.stopped:
+        frame = camera.frame() if camera is not None else None
+        if frame is None:
+            encoded = blank_bytes
         else:
-            # Placeholder frame
-            blank = np.zeros((720, 1280, 3), dtype=np.uint8)
-            cv2.putText(blank, "Waiting for video feed...", (200, 360),
-                        cv2.FONT_HERSHEY_SIMPLEX, 2, (100, 200, 255), 4)
-            ret, buffer = cv2.imencode('.jpg', blank)
-            if ret:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            encoded = jpeg.tobytes() if ok else blank_bytes
+        yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + encoded + b"\r\n"
+        time.sleep(0.033)
 
-        time.sleep(0.033)  # ~30 FPS output
+
+@app.get("/api/cameras/{camera_id}/stream")
+def camera_stream(camera_id: str):
+    camera = camera_or_404(camera_id)
+    return StreamingResponse(generate_processed_frames(camera),
+                             media_type="multipart/x-mixed-replace; boundary=frame")
 
 
 @app.get("/video_feed")
 def video_feed():
-    return StreamingResponse(generate_processed_frames(),
+    return StreamingResponse(generate_processed_frames(manager.first()),
                              media_type="multipart/x-mixed-replace; boundary=frame")
 
 
-# === Main ===
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="AI Drone Vision App")
-    parser.add_argument("--standalone", action="store_true", help="Use laptop webcam instead of drone")
-    parser.add_argument("--model", type=str, help="Load specific model on startup", default=None)
+    parser = argparse.ArgumentParser(description="Vision Hub")
+    parser.add_argument("--standalone", action="store_true", help="Use a laptop webcam for the first camera")
+    parser.add_argument("--model", help="Load a model for the first camera on startup")
     args = parser.parse_args()
-
-    if args.standalone:
-        standalone_mode = True
-        logs.log("App", "Running in standalone (webcam) mode", "INFO")
-
-    if args.model:
-        logs.log("App", f"Loading requested model: {args.model}", "INFO")
-        if not load_model(args.model):
-            logs.log("App", f"Could not load model: {args.model}", "ERROR")
-    else:
-        logs.log("App", "No model specified. Running in Video Only mode.", "INFO")
-
-    print("\nAI Drone Vision Server Running at http://localhost:5000")
-    print("Press CTRL+C to stop\n")
+    standalone_mode = args.standalone
+    startup_model = args.model
+    print("Vision Hub running at http://localhost:5000")
     uvicorn.run(app, host="0.0.0.0", port=5000)
