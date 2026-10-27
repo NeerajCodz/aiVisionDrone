@@ -7,3 +7,5 @@ python-multipart
 pillow
 dlib
 face-recognition
+mediapipe
+ultralytics

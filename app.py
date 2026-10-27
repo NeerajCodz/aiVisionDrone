@@ -56,7 +56,10 @@ app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")
 
 # === Global State ===
-SERVER_URL = "http://10.52.156.118:8000/video_feed"  # Change if needed
+AIVISION_CAMERA_URL = os.environ.get(
+    "AIVISION_CAMERA_URL",
+    "http://esp32cam.local:81/stream",
+).strip() or "http://esp32cam.local:81/stream"
 current_model = None
 current_model_name = "opencv"  # Default fallback
 latest_processed_frame = None
@@ -110,12 +113,12 @@ def processing_loop():
         if video_capture is None or not video_capture.isOpened():
             while running:
                 try:
-                    logs.log("App", "Connecting to video source...", "INFO")
+                    logs.log("App", f"Connecting to camera stream: {AIVISION_CAMERA_URL}", "INFO")
                     if standalone_mode:
                         video_capture = cv2.VideoCapture(0)
                         logs.log("App", "Opened laptop webcam", "SUCCESS")
                     else:
-                        video_capture = cv2.VideoCapture(SERVER_URL)
+                        video_capture = cv2.VideoCapture(AIVISION_CAMERA_URL)
                         # Optimize for low latency
                         video_capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                         video_capture.set(cv2.CAP_PROP_FPS, 30)
