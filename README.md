@@ -14,7 +14,7 @@ py -3.12 -m venv .venv
 
 Open [http://localhost:5000](http://localhost:5000). For a phone or another computer on the same network, use `http://<server-ip>:5000`; `ipconfig` shows the server's Wi-Fi IPv4 address. The app listens on all interfaces. Allow inbound TCP port 5000 in the Windows firewall for the intended network if another device cannot connect. The dashboard currently has no login, so use it on a trusted network.
 
-The dashboard starts without an AI model selected. Choose a model for a camera when you want inference. Running more cameras or models increases CPU and memory use.
+New cameras start without an AI model selected. Choose a model for a camera when you want inference; the selection is saved and restored when the server restarts. Running more cameras or models increases CPU and memory use.
 
 ## Prepare an ESP32-CAM
 

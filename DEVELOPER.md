@@ -33,7 +33,7 @@ The server exposes these routes for the dashboard:
 | `GET /api/models` | List available models |
 | `GET /api/logs` | Read recent events |
 
-`AIVISION_CAMERA_URL` can seed the first camera when there is no saved camera configuration. `--standalone` uses the local webcam for the first camera; `--model` selects a model for the first camera at startup. With neither flag, the app starts in video-only mode. See `python app.py --help` for the current arguments.
+`AIVISION_CAMERA_URL` can seed the first camera when there is no saved camera configuration. `--standalone` uses the local webcam for the first camera; `--model` selects a model for the first camera for that run. New cameras start in video-only mode, and saved model selections are restored on restart. See `python app.py --help` for the current arguments.
 
 ## Adding a model
 
@@ -44,6 +44,6 @@ MediaPipe is pinned to the legacy release used by the existing hand and pose mod
 ## Local configuration and access
 
 - `firmware/esp32cam/secrets.h` contains local Wi-Fi credentials and is ignored by Git. Start from `secrets.example.h`; never commit credentials.
-- Camera URLs are stored locally in `camera_config.json`, which is ignored by Git. Treat URLs containing embedded credentials as sensitive.
+- Camera URLs are stored locally in `camera_config.json`, which is ignored by Git. The camera API accepts HTTP(S) URLs and rejects embedded usernames or passwords.
 - The dashboard binds to `0.0.0.0:5000` so other devices on the network can connect. The current application has no login; use it on a trusted network and restrict firewall access to the intended clients.
 - `server.py` is an older Pi relay and is not required for the ESP32-CAM path.
