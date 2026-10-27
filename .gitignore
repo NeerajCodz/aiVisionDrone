@@ -2,3 +2,4 @@
 .worktrees/
 .venv/
 firmware/esp32cam/secrets.h
+firmware/esp32cam/build/
