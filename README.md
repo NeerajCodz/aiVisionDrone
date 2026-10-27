@@ -28,20 +28,29 @@ if (-not (Test-Path firmware\esp32cam\secrets.h)) {
 
 `secrets.h` is ignored by Git. Keep it local; do not commit or publish it.
 
-Connect the board through a compatible USB serial adapter. Select its actual COM port from `arduino-cli board list`; the example below uses `COM5`. For adapters without automatic boot control, connect GPIO0 to GND and reset the board to enter flashing mode. Compile and upload:
+Connect the board through a compatible USB serial adapter. On this PC, Arduino CLI is installed at the path below; adjust it if your installation is elsewhere. List the ports and use the board's actual COM port in the commands. This example uses `COM5`:
 
 ```powershell
-arduino-cli compile --fqbn esp32:esp32:esp32cam firmware\esp32cam
-arduino-cli upload --fqbn esp32:esp32:esp32cam --port COM5 firmware\esp32cam
+$arduino = 'C:\Program Files\Arduino CLI\arduino-cli.exe'
+& $arduino board list
+```
+
+For adapters without automatic boot control, connect GPIO0 to GND and reset the board to enter flashing mode. Compile and upload:
+
+```powershell
+& $arduino compile --fqbn esp32:esp32:esp32cam firmware\esp32cam
+& $arduino upload --fqbn esp32:esp32:esp32cam --port COM5 firmware\esp32cam
 ```
 
 After upload, remove the GPIO0-to-GND connection and reset the board. Open the serial monitor at 115200 baud:
 
 ```powershell
-arduino-cli monitor --port COM5 --config baudrate=115200
+& $arduino monitor --port COM5 --config baudrate=115200
 ```
 
 The board prints its IP address, `http://<camera-ip>:81/stream`, and a unique `esp32cam-<suffix>.local` hostname. If the hostname does not resolve, use the IP address printed by that board. The camera and server need network connectivity to each other.
+
+You can also open `firmware/esp32cam/esp32cam.ino` in Arduino IDE, select the **AI Thinker ESP32-CAM** board and the board's COM port, then upload and open Serial Monitor at 115200 baud.
 
 ## Add multiple cameras
 
