@@ -1,8 +1,10 @@
 # ESP32-CAM Wireless Stream Implementation Plan
 
+> Historical plan for the original single-camera integration. See the current [Vision Hub setup](../../../README.md) for multiple cameras and unique per-board hostnames.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stream live ESP32-CAM video over Wi-Fi into the AI Vision Drone dashboard and make the existing vision models runnable from the dashboard.
+**Goal:** Stream live ESP32-CAM video over Wi-Fi into the Vision Hub dashboard and make the existing vision models runnable from the dashboard.
 
 **Architecture:** The ESP32-CAM serves an MJPEG endpoint at `/stream` on port 81. The existing FastAPI app opens that endpoint with OpenCV, processes frames with the selected model, and serves its existing annotated feed and logs. The app remains reachable from devices on the same Wi-Fi.
 

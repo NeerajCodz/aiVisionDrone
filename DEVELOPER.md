@@ -1,88 +1,49 @@
-# AI Vision Drone - Developer Guide
+# Vision Hub developer guide
 
-## Overview
+Vision Hub brings multiple network camera feeds into one dashboard and runs the selected vision model for each feed on the server. The ESP32-CAM firmware produces MJPEG; the Python application connects to each camera directly, runs inference, and serves the dashboard. See [README.md](README.md) for installation, flashing, and camera setup.
 
-This project implements a modular AI vision system for drones. It separates the "Drone Side" (Video ingestion) from the "Client Side" (AI Processing & UI).
+## Project layout
 
-## Architecture
-
-The system consists of three main components:
-
-1.  **Drone Server (`server.py`)**: 
-    -   Acts as the video feed buffer.
-    -   Receives raw frames from the drone via POST requests.
-    -   Exposes a video stream endpoint for consumers.
-2.  **AI Application (`app.py`)**: 
-    -   The main orchestrator.
-    -   Connects to the `server.py` video stream.
-    -   Loads AI models dynamically from the `models/` directory.
-    -   Processes frames and generates logs.
-    -   Host the Web UI.
-3.  **Frontend (`static/`)**:
-    -   A responsive, modern dashboard.
-    -   Displays the AI-annotated video feed.
-    -   Shows real-time mission logs.
-    -   Allows switching models on the fly.
-
-## File Structure
-
-```
-aiVisionDrone/
-├── app.py              # Main Entry Point (UI + AI Processor)
-├── server.py           # Drone Video Buffer Server
-├── logs.py             # Log management utility
-├── static/             # Frontend Assets
-│   ├── index.html      # Main Dashboard
-│   ├── css/
-│   │   └── style.css   # Styling (Dark Mode)
-│   └── js/
-│       └── script.js   # Logic (Polling, Model Switching)
-└── models/             # AI Models Directory
-    └── opencv/         # Example Model
-        ├── main.py     # Model Logic (process_frame function)
-        └── model.json  # Metadata
+```text
+app.py                  FastAPI application and camera processing
+logs.py                 In-memory event log
+firmware/esp32cam/      ESP32-CAM sketch and Wi-Fi template
+models/                 Model modules and metadata
+static/                 Dashboard HTML, CSS, and JavaScript
+requirements.txt        Python and model dependencies
+server.py               Legacy Raspberry Pi relay; not used by Vision Hub
 ```
 
-## How to Run
+The project runs directly from its existing checkout directory. The directory name does not need to match the product name.
 
-### 1. Prerequisites
-Install dependencies:
-```bash
-pip install fastapi uvicorn opencv-python numpy
-```
+## Camera interface
 
-### 2. Start the Drone Server
-This simulates the drone's video sender or acts as the receiver for the real drone.
-```bash
-python server.py
-```
-*   Server runs on `http://localhost:8000`
+Each ESP32-CAM serves MJPEG at `http://<camera-ip>:81/stream`. The sketch prints its DHCP address and its unique `esp32cam-<suffix>.local` hostname to the serial monitor at 115200 baud. The dashboard registers a name and stream URL for each camera; use the numeric IP printed by the board if `.local` resolution is unavailable. Camera configuration is local to the server machine.
 
-### 3. Start the Main App
-This launches the dashboard and AI processor.
-```bash
-python app.py
-```
-*   App runs on `http://localhost:5000`
+The server exposes these routes for the dashboard:
 
-### 4. Access Dashboard
-Open your browser and navigate to:
-`http://localhost:5000/static/index.html`
+| Route | Purpose |
+| --- | --- |
+| `GET /api/cameras` | List configured cameras and their state |
+| `POST /api/cameras` | Add a camera |
+| `PATCH /api/cameras/{id}` | Change a camera's configuration |
+| `DELETE /api/cameras/{id}` | Remove a camera |
+| `POST /api/cameras/{id}/model` | Set a camera's model, or clear it with a null `model_id` |
+| `GET /api/cameras/{id}/stream` | View that camera's processed MJPEG stream |
+| `GET /api/models` | List available models |
+| `GET /api/logs` | Read recent events |
 
-## Development
+`AIVISION_CAMERA_URL` can seed the first camera when there is no saved camera configuration. `--standalone` uses the local webcam for the first camera; `--model` selects a model for the first camera at startup. With neither flag, the app starts in video-only mode. See `python app.py --help` for the current arguments.
 
-### Adding a New Model
-1. Create a new folder in `models/`, e.g., `models/yolo_v8/`.
-2. Add a `model.json` with metadata.
-3. Add a `main.py` with the following structure:
-    ```python
-    def process_frame(frame):
-        # Process frame...
-        return processed_frame, ["Log message 1", "Log message 2"]
-    
-    if __name__ == "__main__":
-        # Code to run with local webcam for testing
-    ```
+## Adding a model
 
-### Logs
-Logs are stored in-memory in `logs.py`. They are displayed in the "Mission Logs" panel on the right side of the dashboard.
+Create a folder under `models/` containing `model.json` metadata and `main.py`. The module must expose `process_frame(frame)` and return `(processed_frame, log_messages)`. Dependencies should be added to `requirements.txt`; a model should not change camera state or assume it is the only active feed. Models are discovered from folders containing `model.json`.
+
+MediaPipe is pinned to the legacy release used by the existing hand and pose modules. Both OpenCV distribution names are pinned to the same release because MediaPipe and Ultralytics declare different packages that share the `cv2` namespace. Upgrade those dependencies together and check all model selectors after changing them.
+
+## Local configuration and access
+
+- `firmware/esp32cam/secrets.h` contains local Wi-Fi credentials and is ignored by Git. Start from `secrets.example.h`; never commit credentials.
+- Camera URLs are stored locally in `camera_config.json`, which is ignored by Git. Treat URLs containing embedded credentials as sensitive.
+- The dashboard binds to `0.0.0.0:5000` so other devices on the network can connect. The current application has no login; use it on a trusted network and restrict firewall access to the intended clients.
+- `server.py` is an older Pi relay and is not required for the ESP32-CAM path.

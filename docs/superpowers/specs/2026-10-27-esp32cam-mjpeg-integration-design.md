@@ -1,8 +1,10 @@
 # ESP32-CAM wireless video integration
 
+> Historical design for the original single-camera integration. See the current [Vision Hub setup](../../../README.md) for multiple cameras and unique per-board hostnames.
+
 ## Intent
 
-Connect the ESP32-CAM to the existing AI Vision Drone dashboard over Wi-Fi, show its live video in the dashboard, and make the project's existing vision models available for selection. The dashboard should start in video-only mode so a model is enabled deliberately from its existing selector.
+Connect the ESP32-CAM to the existing Vision Hub dashboard over Wi-Fi, show its live video in the dashboard, and make the project's existing vision models available for selection. The dashboard should start in video-only mode so a model is enabled deliberately from its existing selector.
 
 ## Goals
 
