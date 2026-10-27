@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 opencv-python
+setuptools<82
 jinja2
 numpy
 python-multipart

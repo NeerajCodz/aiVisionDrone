@@ -124,7 +124,7 @@ def processing_loop():
                         video_capture.set(cv2.CAP_PROP_FPS, 30)
 
                     if video_capture.isOpened():
-                        logs.log("App", "Connected to Drone Server Feed", "SUCCESS")
+                        logs.log("App", "Connected to camera stream", "SUCCESS")
                         retry_delay = 2  # Reset backoff
                         break
                     else:
