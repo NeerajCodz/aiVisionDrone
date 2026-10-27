@@ -7,5 +7,5 @@ python-multipart
 pillow
 dlib
 face-recognition
-mediapipe
+mediapipe>=0.10,<1.0
 ultralytics
