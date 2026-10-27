@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include "esp_camera.h"
 #include "esp_http_server.h"
+#include "img_converters.h"
 #include "secrets.h"
 
 namespace {
@@ -69,7 +70,15 @@ bool initializeCamera() {
   config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
   config.grab_mode = CAMERA_GRAB_LATEST;
 
-  const esp_err_t error = esp_camera_init(&config);
+  esp_err_t error = esp_camera_init(&config);
+  if (error == ESP_ERR_NOT_SUPPORTED) {
+    // Some camera sensors output RGB565 but cannot produce JPEG themselves.
+    Serial.println("Sensor does not support JPEG; trying RGB565 with software JPEG encoding.");
+    config.pixel_format = PIXFORMAT_RGB565;
+    config.frame_size = FRAMESIZE_QQVGA;
+    config.fb_count = 1;
+    error = esp_camera_init(&config);
+  }
   if (error != ESP_OK) {
     Serial.printf("Camera initialization failed (0x%x). Check the ESP32-CAM pin map and camera ribbon.\n", error);
     return false;
@@ -77,9 +86,10 @@ bool initializeCamera() {
 
   sensor_t *sensor = esp_camera_sensor_get();
   if (sensor != nullptr) {
-    sensor->set_framesize(sensor, FRAMESIZE_QVGA);
+    Serial.printf("Camera sensor PID: 0x%x\n", sensor->id.PID);
+    sensor->set_framesize(sensor, config.frame_size);
   }
-  Serial.println("Camera initialized: QVGA JPEG");
+  Serial.println(config.pixel_format == PIXFORMAT_JPEG ? "Camera initialized: QVGA JPEG" : "Camera initialized: QQVGA RGB565");
   return true;
 }
 
@@ -119,15 +129,26 @@ esp_err_t streamHandler(httpd_req_t *request) {
       break;
     }
 
+    uint8_t *jpeg = frame->buf;
+    size_t jpegLength = frame->len;
+    const bool converted = frame->format != PIXFORMAT_JPEG;
+    if (converted && !frame2jpg(frame, 80, &jpeg, &jpegLength)) {
+      esp_camera_fb_return(frame);
+      Serial.println("Camera JPEG encoding failed");
+      result = ESP_FAIL;
+      break;
+    }
+
     result = httpd_resp_send_chunk(request, kStreamBoundary, strlen(kStreamBoundary));
     if (result == ESP_OK) {
       const int headerLength = snprintf(partHeader, sizeof(partHeader), kPartHeaderFormat,
-                                        static_cast<unsigned int>(frame->len));
+                                        static_cast<unsigned int>(jpegLength));
       result = httpd_resp_send_chunk(request, partHeader, headerLength);
     }
     if (result == ESP_OK) {
-      result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(frame->buf), frame->len);
+      result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(jpeg), jpegLength);
     }
+    if (converted) free(jpeg);
     esp_camera_fb_return(frame);
 
     if (result != ESP_OK) {
