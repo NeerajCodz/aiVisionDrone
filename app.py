@@ -232,6 +232,6 @@ if __name__ == "__main__":
     else:
         logs.log("App", "No model specified. Running in Video Only mode.", "INFO")
 
-    print("\nAI Drone Vision Server Running → http://localhost:5000")
+    print("\nAI Drone Vision Server Running at http://localhost:5000")
     print("Press CTRL+C to stop\n")
     uvicorn.run(app, host="0.0.0.0", port=5000)
