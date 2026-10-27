@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-opencv-contrib-python
+opencv-python
 jinja2
 numpy
 python-multipart
