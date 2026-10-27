@@ -24,7 +24,7 @@ constexpr int kVsyncPin = 25;
 constexpr int kHrefPin = 23;
 constexpr int kPclkPin = 22;
 
-constexpr char kMdnsHost[] = "esp32cam";
+char mdnsHost[20];
 constexpr char kStreamContentType[] = "multipart/x-mixed-replace;boundary=frame";
 constexpr char kStreamBoundary[] = "\r\n--frame\r\n";
 constexpr char kPartHeaderFormat[] = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
@@ -199,6 +199,7 @@ void connectWifi() {
 
   Serial.println("Connecting to the configured Wi-Fi network...");
   WiFi.mode(WIFI_STA);
+  WiFi.setHostname(mdnsHost);
   WiFi.setSleep(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -214,11 +215,17 @@ void connectWifi() {
 
   Serial.printf("Wi-Fi connected. Camera IP: %s\n", WiFi.localIP().toString().c_str());
   if (!mdnsStarted) {
-    mdnsStarted = MDNS.begin(kMdnsHost);
-    Serial.println(mdnsStarted ? "mDNS host: esp32cam.local" : "mDNS startup failed; use the camera IP.");
+    mdnsStarted = MDNS.begin(mdnsHost);
+    if (mdnsStarted) {
+      Serial.printf("mDNS host: %s.local\n", mdnsHost);
+    } else {
+      Serial.println("mDNS startup failed; use the camera IP.");
+    }
   }
   Serial.printf("Stream URL: http://%s:81/stream\n", WiFi.localIP().toString().c_str());
-  Serial.println("Hostname URL: http://esp32cam.local:81/stream");
+  if (mdnsStarted) {
+    Serial.printf("Hostname URL: http://%s.local:81/stream\n", mdnsHost);
+  }
 }
 
 }  // namespace
@@ -228,6 +235,9 @@ void setup() {
   delay(300);
   Serial.println();
   Serial.println("Starting ESP32-CAM wireless MJPEG server");
+  // The last three bytes of the factory MAC distinguish boards from the same vendor.
+  snprintf(mdnsHost, sizeof(mdnsHost), "esp32cam-%06lx",
+           static_cast<unsigned long>((ESP.getEfuseMac() >> 24) & 0xffffffULL));
   cameraReady = initializeCamera();
 
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
