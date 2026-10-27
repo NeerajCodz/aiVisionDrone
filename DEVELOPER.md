@@ -33,7 +33,9 @@ The server exposes these routes for the dashboard:
 | `GET /api/models` | List available models |
 | `GET /api/logs` | Read recent events |
 
-`AIVISION_CAMERA_URL` can seed the first camera when there is no saved camera configuration. `--standalone` uses the local webcam for the first camera; `--model` selects a model for the first camera for that run. New cameras start in video-only mode, and saved model selections are restored on restart. See `python app.py --help` for the current arguments.
+`POST /api/cameras` accepts JSON such as `{"name":"Workshop", "url":"http://192.168.1.42:81/stream"}`. The model route accepts `{"model_id":"yolov8"}` or `{"model_id":null}` for video-only mode.
+
+`AIVISION_CAMERA_URL` can seed the first camera when there is no saved camera configuration. `AIVISION_CAMERAS_FILE` overrides the default `camera_config.json` path. `--standalone` uses the local webcam for the first camera; `--model` selects a model for the first camera for that run. New cameras start in video-only mode, and saved model selections are restored on restart. See `python app.py --help` for the current arguments.
 
 ## Adding a model
 
